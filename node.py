@@ -5,7 +5,7 @@ class Node():
         self.network = network
         self.name = name
         self.id = id
-        self.connections = {} # Saved as [(obj, w_ji)]
+        self.connections = {} # Saved as {name:(obj, w_ij)}
         self.h = [psi]
         self.s = 'U' # s={U,D,I}
         
@@ -23,5 +23,5 @@ class Node():
             self.s = 'U'
 
     def compute_h(self, t): # Pass current t, look one back
-        h_t = min(1, self.h[-1] + sum([neigh[0].h[t-1] * neigh[1] for neigh in self.connections.values()]))
+        h_t = min(1, self.h[t-1] + sum([neigh[0].h[t-1] * neigh[0].connections[self.name][1] for neigh in self.connections.values()]))
         self.h += [h_t]

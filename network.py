@@ -10,4 +10,5 @@ class Network():
     def compute_R(self):
         h_T = sum([self.nu*node.h[-1] for node in self.nodes.values()])
         h_1 = sum([self.nu*node.h[0] for node in self.nodes.values()])
-        return h_T - h_1
+        R = (h_T - h_1)/(len(self.nodes.values())-1)
+        return R
