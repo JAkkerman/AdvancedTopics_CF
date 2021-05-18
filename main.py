@@ -7,6 +7,7 @@ import node
 import network
 
 import gen_matrix as gm
+from datetime import datetime
 
 
 COMPANY_NAMES = ['DBR', 'AMROBK', 'BACR-Bank', 'BNP', 'BYLAN', 'CMZB', 'CSGAG', 'DB',
@@ -15,7 +16,7 @@ COMPANY_NAMES = ['DBR', 'AMROBK', 'BACR-Bank', 'BNP', 'BYLAN', 'CMZB', 'CSGAG', 
                  'C', 'CRDSUI-USAInc', 'GS', 'JPM', 'MWD', 'RY', 'MIZUHBA', 'NOMURA']
 
 
-def init_weights(company_names, CDS_type, detrended):
+def init_weights(company_names, CDS_type, detrended, moving_beta):
     """
     Initialize weight matrix
     """
@@ -26,13 +27,17 @@ def init_weights(company_names, CDS_type, detrended):
         log_ret = np.log(data[company_names].shift(1)/data[company_names])
         log_ret = log_ret.drop(index=[0])
     else:
-        log_ret = pd.read_csv('Data/cleaned_spreads_detrended.csv')
+        if not moving_beta:
+            log_ret = pd.read_csv('Data/cleaned_spreads_detrended.csv')
+        else:
+            log_ret = pd.read_csv('Data/cleaned_spreads_detrended_movingbeta.csv')
 
     # Construct weekly W matrices
     W = []
     times = []
     for week_end in np.arange(3+21*5,len(log_ret)-2,step=5): # Skip first 3 days and last 2 days (not full weeks)
         weekly_log_ret = log_ret.iloc[week_end-21*5:week_end]
+        # print(weekly_log_ret)
         times += [data['Date'].iloc[week_end]]
         if CDS_type == 'pearson':
             W += [gm.pearson_r_matrix(weekly_log_ret, company_names)]
@@ -41,12 +46,12 @@ def init_weights(company_names, CDS_type, detrended):
         elif CDS_type == 'granger':
             W += [gm.granger_casuality(weekly_log_ret, company_names)]
     
-    save_W(W, times, company_names, CDS_type, detrended)
+    save_W(W, times, company_names, CDS_type, detrended, moving_beta)
 
     return W, times
 
 
-def read_weights(company_names, CDS_type, detrended):
+def read_weights(company_names, CDS_type, detrended, moving_beta):
     """
     Reads weights from csv
     """
@@ -54,9 +59,11 @@ def read_weights(company_names, CDS_type, detrended):
 
     if not detrended:
         df_W = pd.read_csv(f'W_timeseries/W_{CDS_type}.csv', index_col=0)
-
     else:
-        df_W = pd.read_csv(f'W_timeseries/W_{CDS_type}_detrended.csv', index_col=0)
+        if not moving_beta:
+            df_W = pd.read_csv(f'W_timeseries/W_{CDS_type}_detrended.csv', index_col=0)
+        else:
+            df_W = pd.read_csv(f'W_timeseries/W_{CDS_type}_detrended_movingbeta.csv', index_col=0)
 
     W = []
     for t,row in df_W.iterrows():
@@ -68,7 +75,7 @@ def read_weights(company_names, CDS_type, detrended):
     return W, times
 
 
-def save_W(W, times, company_names, name, detrended):
+def save_W(W, times, company_names, name, detrended, moving_beta):
     """
     Converts W matrix entries to time series, saves to csv
     """
@@ -84,8 +91,11 @@ def save_W(W, times, company_names, name, detrended):
     df_W = pd.DataFrame(W_to_timeseries)
     if not detrended:
         df_W.to_csv(f'W_timeseries/W_{name}.csv')
-    else: 
-        df_W.to_csv(f'W_timeseries/W_{name}_detrended.csv')
+    else:
+        if not moving_beta: 
+            df_W.to_csv(f'W_timeseries/W_{name}_detrended.csv')
+        else:
+            df_W.to_csv(f'W_timeseries/W_{name}_detrended_movingbeta.csv')
 
 
 def init_network(w, company_names, target_bank):
@@ -123,14 +133,14 @@ def compute_R(network_obj, T):
     """
     Runs contagion simulation
     """
-    for t in range(T):
+    for t in range(1,T+1):
         # First compute the h value for time point t for each node
         for node_obj in network_obj.nodes.values():
-            if node_obj.s == 'I':
-                continue
+            # if node_obj.s == 'I':
+            #     continue
             
-            if node_obj.s == 'U':
-                node_obj.compute_h(t)
+            # if node_obj.s == 'U':
+            node_obj.compute_h(t)
 
             # Secondly, update the s status
             node_obj.check_s()
@@ -141,7 +151,7 @@ def compute_R(network_obj, T):
     return R
 
 
-def run_simulation(company_names, CDS_type, W, times):
+def run_simulation(company_names, CDS_type, W, times, detrended, moving_beta):
     """
     Runs simulation for all values of W and saves to csv
     """
@@ -159,7 +169,10 @@ def run_simulation(company_names, CDS_type, W, times):
     if not detrended:
         df_R.to_csv(f'R_scores/R_score_{CDS_type}.csv')
     else:
-        df_R.to_csv(f'R_scores/R_score_{CDS_type}_detrended.csv')
+        if not moving_beta:
+            df_R.to_csv(f'R_scores/R_score_{CDS_type}_detrended.csv')
+        else:
+            df_R.to_csv(f'R_scores/R_score_{CDS_type}_detrended_movingbeta.csv')
 
 
 if __name__ == '__main__':
@@ -173,21 +186,30 @@ if __name__ == '__main__':
     # Granger_caus = False
 
     CDS_types = ['pearson', 'pearson_timelag', 'granger']
+    # CDS_types = ['pearson', 'pearson_timelag']
     # CDS_types = ['pearson', 'granger']
     # CDS_types = ['pearson_timelag', 'granger']
-    CDS_types = ['granger']
+    # CDS_types = ['granger']
     # CDS_types = ['pearson']
     # CDS_types = ['pearson_timelag']
 
     # Generate weights or read weights:
-    gen_weights = True
+    gen_weights = False
     detrended = True
+    moving_beta = False
 
     for CDS_type in CDS_types:
-
+        
+        print(50*'-')
+        start_time = datetime.now()
         if gen_weights:
-            W, times = init_weights(COMPANY_NAMES, CDS_type, detrended)
+            print(f'Generating weights for {CDS_type} method')
+            W, times = init_weights(COMPANY_NAMES, CDS_type, detrended, moving_beta)
         else:
-            W, times = read_weights(COMPANY_NAMES, CDS_type, detrended)
+            print(f'Reading in weights for {CDS_type} method')
+            W, times = read_weights(COMPANY_NAMES, CDS_type, detrended, moving_beta)
 
-        # run_simulation(COMPANY_NAMES, CDS_type, W, times)
+        print('Running simulation...')
+        run_simulation(COMPANY_NAMES, CDS_type, W, times, detrended, moving_beta)
+        print(f'Simulation Finished, runtime={datetime.now()-start_time}.')
+        print(50*'-')

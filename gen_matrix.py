@@ -84,11 +84,16 @@ def granger_casuality(data, company_names):
     # Fill in the correlation matrix
     for j in range(N):
         for i in range(N):
-            ar = np.stack((data.iloc[:-1,j],data.iloc[1:,i]), axis=1)
-            # print(ar)
-            granger_test = grangercausalitytests(ar, 1, verbose=False)
-            R_sq = granger_test[1][1][1].rsquared
-            # print(R_sq)
-            granger_weight_matrix[j,i] = R_sq
+            # Skip if same company
+            if j==i:
+                granger_weight_matrix[j,i] = 1
+            else:
+                ar = np.stack((data.iloc[:-1,j],data.iloc[1:,i]), axis=1)
+                # print(ar)
+                granger_test = grangercausalitytests(ar, 1, verbose=False)
+                # print(granger_test[1][1][1])
+                R_sq = granger_test[1][1][1].rsquared
+                # print(R_sq)
+                granger_weight_matrix[j,i] = R_sq
             
     return granger_weight_matrix
