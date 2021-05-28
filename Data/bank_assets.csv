@@ -1,0 +1,31 @@
+Bank,Fullname,Assets,Country
+DBR,Fed Rep Germany,,Germany
+AMROBK,ABN AMRO Bk NV,420.89,Netherlands
+BACR-Bank,Barclays Bk plc,1510.14,United Kingdom
+BNP,BNP Paribas,2398.01,France
+BYLAN,Bay Landbk Giroz,266.27,Germany
+CMZB,Commerzbank AG,478.40,Germany
+CSGAG,Credit Suisse Gp AG,812.91,Switzerland
+DB,Deutsche Bk AG,1456.26,Germany
+DZBK,DZ Bk AG,627.31,Germany
+ERGBA,Erste Group Bk AG,275.72,Austria
+HSBC,HSBC Hldgs plc,2715.15,United Kingdom
+HSBC-HSBCBank,HSBC Bk plc,2715.15,United Kingdom
+INTNED,ING Groep NV,1000.72,Netherlands
+LBW,Landbk Baden Wuertbg,287.99,Germany
+NDB,Norddeutsche Landbk Girozentrale,,Germany
+SANPAO,Intesa Sanpaolo SpA,1057.82,Italy
+SANTNDR,Bco SANTANDER SA,1702.61,Spain
+SEB,Skandinaviska Enskilda Banken AB,305.79,Sweden
+SOCGEN,Societe Generale,1522.05,France
+UBS,UBS AG,972.18,Switzerland
+UCBAG,UniCredit Bk AG,,Germany
+BACF-BankNA,Bk of America NA,2434.08,United States
+C,Citigroup Inc,1951.16,United States
+CRDSUI-USAInc,Cr Suisse USA Inc,812.91,United States
+GS,Goldman Sachs Gp Inc,992.97,United States
+JPM,JPMorgan Chase & Co,2687.38,United States
+MWD,Morgan Stanley,895.43,United States
+RY,Royal Bk Cda,1116.31,Canada
+MIZUHBA,Mizuho Bk Ltd,1874.89,Japan
+NOMURA,Nomura Hldgs Inc,425.50,Japan

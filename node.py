@@ -1,12 +1,13 @@
 
 
 class Node():
-    def __init__(self, network, name, id, psi):
+    def __init__(self, network, name, id, psi, nu):
         self.network = network
         self.name = name
         self.id = id
         self.connections = {} # Saved as {name:(obj, w_ij)}
         self.h = [psi]
+        self.nu = nu
         self.s = ['U'] # s={U,D,I}
         
         self.check_s()

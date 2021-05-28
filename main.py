@@ -10,10 +10,31 @@ import gen_matrix as gm
 from datetime import datetime
 
 
-COMPANY_NAMES = ['DBR', 'AMROBK', 'BACR-Bank', 'BNP', 'BYLAN', 'CMZB', 'CSGAG', 'DB',
+# COMPANY_NAMES = ['DBR', 'AMROBK', 'BACR-Bank', 'BNP', 'BYLAN', 'CMZB', 'CSGAG', 'DB',
+#                  'DZBK', 'ERGBA', 'HSBC', 'HSBC-HSBCBank', 'INTNED', 'LBW', 'NDB',
+#                  'SANPAO', 'SANTNDR', 'SEB', 'SOCGEN', 'UBS', 'UCBAG', 'BACF-BankNA',
+#                  'C', 'CRDSUI-USAInc', 'GS', 'JPM', 'MWD', 'RY', 'MIZUHBA', 'NOMURA']
+
+COMPANY_NAMES = ['AMROBK', 'BACR-Bank', 'BNP', 'BYLAN', 'CMZB', 'CSGAG', 'DB',
                  'DZBK', 'ERGBA', 'HSBC', 'HSBC-HSBCBank', 'INTNED', 'LBW', 'NDB',
                  'SANPAO', 'SANTNDR', 'SEB', 'SOCGEN', 'UBS', 'UCBAG', 'BACF-BankNA',
                  'C', 'CRDSUI-USAInc', 'GS', 'JPM', 'MWD', 'RY', 'MIZUHBA', 'NOMURA']
+
+COMPANY_NAMES_WEIGHTED = ['AMROBK', 'BACR-Bank', 'BNP', 'BYLAN', 'CMZB', 'CSGAG', 'DB',
+                          'DZBK', 'ERGBA', 'HSBC', 'HSBC-HSBCBank', 'INTNED', 'LBW', 'SANPAO', 
+                          'SANTNDR', 'SEB', 'SOCGEN', 'UBS', 'BACF-BankNA','C', 'CRDSUI-USAInc', 
+                          'GS', 'JPM', 'MWD', 'RY', 'MIZUHBA', 'NOMURA']
+
+
+def get_asset_weights(company_names):
+    """
+    Opens file with asset size for banks, standardizes and returns data
+    """
+    df_assets = pd.read_csv('Data/bank_assets.csv')
+    avg_assets = df_assets['Assets'].mean()
+    bank_assets = {company_name: df_assets.loc[df_assets['Bank']==company_name, 'Assets'].values[0]/avg_assets
+                     for company_name in company_names}
+    return bank_assets
 
 
 def init_weights(company_names, CDS_type, detrended, moving_beta):
@@ -38,7 +59,12 @@ def init_weights(company_names, CDS_type, detrended, moving_beta):
     for week_end in np.arange(3+21*5,len(log_ret)-2,step=5): # Skip first 3 days and last 2 days (not full weeks)
         weekly_log_ret = log_ret.iloc[week_end-21*5:week_end]
         # print(weekly_log_ret)
-        times += [data['Date'].iloc[week_end]]
+
+        if moving_beta:
+            times += [data['Date'].iloc[week_end+100]]
+        else:
+            times += [data['Date'].iloc[week_end]]
+
         if CDS_type == 'pearson':
             W += [gm.pearson_r_matrix(weekly_log_ret, company_names)]
         elif CDS_type == 'pearson_timelag':
@@ -67,7 +93,7 @@ def read_weights(company_names, CDS_type, detrended, moving_beta):
 
     W = []
     for t,row in df_W.iterrows():
-        # Reshape, skip date 
+        # Reshape, skip date and DBR
         W += [np.array(row[1:].values.tolist()).reshape(len(company_names), len(company_names))]
 
     times = df_W['Date']
@@ -98,13 +124,13 @@ def save_W(W, times, company_names, name, detrended, moving_beta):
             df_W.to_csv(f'W_timeseries/W_{name}_detrended_movingbeta.csv')
 
 
-def init_network(w, company_names, target_bank):
+def init_network(w, company_names, target_bank, asset_weighted, asset_weights):
     """
     Generate network and node objects based on W matrix
     """
 
     network_obj = network.Network(w)
-    no_companies = w.shape[0]
+    no_companies = len(company_names)
 
 
     # First generate all nodes
@@ -114,7 +140,11 @@ def init_network(w, company_names, target_bank):
         if company_name == target_bank:
             psi = 1
 
-        node_obj = node.Node(network_obj, company_name, j, psi)
+        nu = 1
+        if asset_weighted:
+            nu = asset_weights[company_name]
+
+        node_obj = node.Node(network_obj, company_name, j, psi, nu)
         node_obj.check_s()
         network_obj.nodes[company_name] = node_obj
 
@@ -151,28 +181,72 @@ def compute_R(network_obj, T):
     return R
 
 
-def run_simulation(company_names, CDS_type, W, times, detrended, moving_beta):
+def run_simulation(company_names, CDS_type, W, T, times, detrended, moving_beta, 
+                   asset_weighted=False, asset_weights={}):
     """
     Runs simulation for all values of W and saves to csv
     """
-    R_scores = {bank:{} for bank in COMPANY_NAMES}
+    R_scores = {bank:{} for bank in company_names}
     R_scores['Date'] = {t: times[t] for t in range(len(W))}
 
-    for target_bank in COMPANY_NAMES:
+    # Loop over all individual banks
+    for target_bank in company_names:
         for t, w in enumerate(W):
             # Load weights into objects
-            network_obj = init_network(w, COMPANY_NAMES, target_bank)
+            network_obj = init_network(w, company_names, target_bank, 
+                                       asset_weighted, asset_weights)
             R = compute_R(network_obj, T)
             R_scores[target_bank][t] = R
     df_R = pd.DataFrame(R_scores)
 
-    if not detrended:
-        df_R.to_csv(f'R_scores/R_score_{CDS_type}.csv')
+    filename = f'R_scores/R_score_{CDS_type}'
+    if detrended:
+        filename += '_detrended'
+    if moving_beta:
+        filename += '_movingbeta'
+    if asset_weighted:
+        filename += '_assetweights'
+    filename += '.csv'
+
+    df_R.to_csv(filename)
+
+    # if not detrended:
+    #     df_R.to_csv(f'R_scores/R_score_{CDS_type}.csv')
+    # else:
+    #     if not moving_beta:
+    #         df_R.to_csv(f'R_scores/R_score_{CDS_type}_detrended.csv')
+    #     else:
+    #         df_R.to_csv(f'R_scores/R_score_{CDS_type}_detrended_movingbeta.csv')
+
+def weights_and_simulation(CDS_type, T, gen_weights, detrended, moving_beta, asset_weighted):
+    """
+    Reads or generates weights, performs simulation.
+    """
+    # Start simulation
+    print(50*'-')
+    if asset_weighted:
+        # COMPANY_NAMES = COMPANY_NAMES_WEIGHTED
+        asset_weights = get_asset_weights(COMPANY_NAMES_WEIGHTED)
+
+    # for CDS_type in CDS_types:
+    start_time = datetime.now()
+    if gen_weights:
+        print(f'Generating weights for {CDS_type} method, detrended={detrended}, moving_beta={moving_beta}, asset_weighted={asset_weighted}')
+        W, times = init_weights(COMPANY_NAMES, CDS_type, detrended, moving_beta)
     else:
-        if not moving_beta:
-            df_R.to_csv(f'R_scores/R_score_{CDS_type}_detrended.csv')
-        else:
-            df_R.to_csv(f'R_scores/R_score_{CDS_type}_detrended_movingbeta.csv')
+        print(f'Reading in weights for {CDS_type} method, detrended={detrended}, moving_beta={moving_beta}, asset_weighted={asset_weighted}')
+        W, times = read_weights(COMPANY_NAMES, CDS_type, detrended, moving_beta)
+
+    print('Running simulation...')
+
+    if not asset_weighted:
+        run_simulation(COMPANY_NAMES, CDS_type, W, T, times, detrended, moving_beta)
+    else:
+        run_simulation(COMPANY_NAMES_WEIGHTED, CDS_type, W, T, times, detrended, moving_beta, 
+                    asset_weighted, asset_weights)
+    
+    print(f'Simulation Finished, runtime={datetime.now()-start_time}.')
+    print(50*'-')
 
 
 if __name__ == '__main__':
@@ -185,31 +259,37 @@ if __name__ == '__main__':
     # pearson_timelag = False
     # Granger_caus = False
 
-    CDS_types = ['pearson', 'pearson_timelag', 'granger']
+    # CDS_types = ['pearson', 'pearson_timelag', 'granger']
+    # CDS_types = ['drawups']
     # CDS_types = ['pearson', 'pearson_timelag']
     # CDS_types = ['pearson', 'granger']
     # CDS_types = ['pearson_timelag', 'granger']
     # CDS_types = ['granger']
-    # CDS_types = ['pearson']
+    CDS_types = ['pearson']
     # CDS_types = ['pearson_timelag']
 
     # Generate weights or read weights:
-    gen_weights = False
+    gen_weights = True
     detrended = True
-    moving_beta = False
+    moving_beta = True
+    asset_weighted = False
 
+    # CDS_type = 'drawups'
+    # CDS_type = 'granger'
     for CDS_type in CDS_types:
-        
-        print(50*'-')
-        start_time = datetime.now()
-        if gen_weights:
-            print(f'Generating weights for {CDS_type} method')
-            W, times = init_weights(COMPANY_NAMES, CDS_type, detrended, moving_beta)
-        else:
-            print(f'Reading in weights for {CDS_type} method')
-            W, times = read_weights(COMPANY_NAMES, CDS_type, detrended, moving_beta)
+        weights_and_simulation(CDS_type, T, gen_weights, detrended, moving_beta, asset_weighted)
 
-        print('Running simulation...')
-        run_simulation(COMPANY_NAMES, CDS_type, W, times, detrended, moving_beta)
-        print(f'Simulation Finished, runtime={datetime.now()-start_time}.')
-        print(50*'-')
+    # for CDS_type in CDS_types:
+    #     for dt in [True, False]:
+    #         detrended = dt
+    #         if detrended:
+    #             for mb in [True, False]:
+    #                 moving_beta = mb
+    #                 for aw in [True, False]:
+    #                     asset_weighted = aw
+    #                     weights_and_simulation(CDS_type, T, gen_weights, detrended, moving_beta, asset_weighted)
+    #         else:
+    #             for aw in [True, False]:
+    #                 asset_weighted = aw
+    #                 weights_and_simulation(CDS_type, T, gen_weights, detrended, moving_beta, asset_weighted)
+

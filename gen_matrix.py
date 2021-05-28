@@ -91,9 +91,11 @@ def granger_casuality(data, company_names):
                 ar = np.stack((data.iloc[:-1,j],data.iloc[1:,i]), axis=1)
                 # print(ar)
                 granger_test = grangercausalitytests(ar, 1, verbose=False)
-                # print(granger_test[1][1][1])
-                R_sq = granger_test[1][1][1].rsquared
-                # print(R_sq)
-                granger_weight_matrix[j,i] = R_sq
+                # print(granger_test)
+                p_val = granger_test[1][0]['ssr_ftest'][1]
+                if p_val < 0.05:
+                    R_sq = granger_test[1][1][1].rsquared
+                    # print(R_sq)
+                    granger_weight_matrix[j,i] = R_sq
             
     return granger_weight_matrix
