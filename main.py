@@ -260,16 +260,16 @@ if __name__ == '__main__':
     # Granger_caus = False
 
     # CDS_types = ['pearson', 'pearson_timelag', 'granger']
-    # CDS_types = ['drawups']
+    CDS_types = ['drawups']
     # CDS_types = ['pearson', 'pearson_timelag']
     # CDS_types = ['pearson', 'granger']
     # CDS_types = ['pearson_timelag', 'granger']
     # CDS_types = ['granger']
-    CDS_types = ['pearson']
+    # CDS_types = ['pearson']
     # CDS_types = ['pearson_timelag']
 
     # Generate weights or read weights:
-    gen_weights = True
+    gen_weights = False
     detrended = True
     moving_beta = True
     asset_weighted = False
